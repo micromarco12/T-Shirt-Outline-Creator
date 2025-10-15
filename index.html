@@ -23,17 +23,6 @@
             Upload an image to generate its line art outline. Perfect for custom T-shirt designs.
         </p>
 
-        <!-- API Key Input -->
-        <div class="mb-6 w-full max-w-md mx-auto">
-            <label for="apiKey" class="block text-sm font-medium text-gray-300 mb-2">fal.ai API Key</label>
-            <input 
-                type="password" 
-                id="apiKey"
-                class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="Enter your fal.ai Key ID:Key Secret"
-            >
-        </div>
-
         <!-- Image Upload Dropzone -->
         <div id="upload-container">
             <div id="dropzone" class="w-full max-w-lg mx-auto bg-gray-800 border-2 border-dashed border-gray-600 rounded-xl p-8 cursor-pointer transition-all duration-300 hover:border-indigo-500">
@@ -98,8 +87,10 @@
         // Use the new, recommended @fal-ai/client
         import { fal } from 'https://esm.sh/@fal-ai/client';
 
+        // Get API key from environment variable
+        const API_KEY = import.meta.env.VITE_FAL_API_KEY;
+
         // DOM Element References
-        const apiKeyInput = document.getElementById('apiKey');
         const uploadContainer = document.getElementById('upload-container');
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
@@ -121,15 +112,6 @@
 
         let isProcessing = false;
         let currentFile = null;
-
-        // --- Persist API Key in localStorage ---
-        const savedApiKey = localStorage.getItem('falApiKey');
-        if (savedApiKey) {
-            apiKeyInput.value = savedApiKey;
-        }
-        apiKeyInput.addEventListener('input', () => {
-            localStorage.setItem('falApiKey', apiKeyInput.value);
-        });
 
         // --- Event Listeners ---
         dropzone.addEventListener('click', () => fileInput.click());
@@ -191,19 +173,18 @@
 
         function processImage() {
             if (isProcessing) return;
-            
-            const apiKey = apiKeyInput.value.trim();
-            if (!apiKey) {
-                alert('Please enter your fal.ai API Key before creating an outline.');
+
+            if (!API_KEY || API_KEY === 'your_fal_api_key_here') {
+                alert('API key not configured. Please add your fal.ai API key to the .env file.');
                 return;
             }
-            
+
             isProcessing = true;
             loading.classList.remove('hidden');
             createOutlineButton.classList.add('hidden');
             errorContainer.classList.add('hidden');
-            
-            runFalAI(currentFile, apiKey);
+
+            runFalAI(currentFile, API_KEY);
         }
 
         /**
