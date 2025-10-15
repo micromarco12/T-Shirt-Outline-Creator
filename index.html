@@ -157,6 +157,11 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
+    <div id="toast" class="hidden fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 border border-cyan-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-opacity">
+        <p id="toast-message" class="text-sm font-medium"></p>
+    </div>
+
     <script type="module">
         // Use the new, recommended @fal-ai/client
         import { fal } from 'https://esm.sh/@fal-ai/client';
@@ -199,10 +204,20 @@
         const closeLibraryButton = document.getElementById('closeLibraryButton');
         const libraryGrid = document.getElementById('libraryGrid');
         const libraryEmpty = document.getElementById('libraryEmpty');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
 
         let isProcessing = false;
         let currentFile = null;
         let currentGeneratedImage = null;
+
+        function showToast(message, duration = 3000) {
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, duration);
+        }
 
         // --- Event Listeners ---
         dropzone.addEventListener('click', () => fileInput.click());
@@ -246,7 +261,7 @@
         
         function handleFile(file) {
             if (!file.type.startsWith('image/')) {
-                alert('Invalid file type. Please upload an image.');
+                showToast('Invalid file type. Please upload an image.');
                 return;
             }
             currentFile = file;
@@ -262,7 +277,7 @@
                 startOverButton.classList.add('hidden');
                 errorContainer.classList.add('hidden');
             };
-            reader.onerror = () => alert('Could not read the selected file.');
+            reader.onerror = () => showToast('Could not read the selected file.');
             reader.readAsDataURL(file);
         }
 
@@ -273,18 +288,18 @@
             const prompt = promptInput.value.trim();
 
             if (!prompt) {
-                alert('Please enter a prompt.');
+                showToast('Please enter a prompt.');
                 return;
             }
 
             // Check API key based on selected model
             if (selectedModel === 'flux-pro' && (!FAL_API_KEY || FAL_API_KEY === 'your_fal_api_key_here')) {
-                alert('Flux Pro API key not configured. Please add your fal.ai API key to the .env file.');
+                showToast('Flux Pro API key not configured.');
                 return;
             }
 
             if (selectedModel === 'gemini' && (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here')) {
-                alert('Gemini API key not configured. Please add your Gemini API key to the .env file.');
+                showToast('Gemini API key not configured.');
                 return;
             }
 
@@ -503,7 +518,7 @@
 
         async function saveToLibrary() {
             if (!currentGeneratedImage) {
-                alert('No image to save');
+                showToast('No image to save');
                 return;
             }
 
@@ -519,16 +534,16 @@
 
                 if (error) throw error;
 
-                alert('Image saved to library successfully!');
+                showToast('Image saved to library successfully!');
             } catch (error) {
                 console.error('Error saving to library:', error);
-                alert('Failed to save image: ' + error.message);
+                showToast('Failed to save image: ' + error.message);
             }
         }
 
         function downloadImage() {
             if (!currentGeneratedImage) {
-                alert('No image to download');
+                showToast('No image to download');
                 return;
             }
 
@@ -591,7 +606,7 @@
                 });
             } catch (error) {
                 console.error('Error loading library:', error);
-                alert('Failed to load library: ' + error.message);
+                showToast('Failed to load library: ' + error.message);
             }
         }
 
@@ -614,7 +629,7 @@
                 document.body.removeChild(link);
             } catch (error) {
                 console.error('Error downloading image:', error);
-                alert('Failed to download image: ' + error.message);
+                showToast('Failed to download image: ' + error.message);
             }
         };
 
@@ -632,9 +647,10 @@
                 if (error) throw error;
 
                 await loadLibrary();
+                showToast('Image deleted successfully');
             } catch (error) {
                 console.error('Error deleting image:', error);
-                alert('Failed to delete image: ' + error.message);
+                showToast('Failed to delete image: ' + error.message);
             }
         };
     </script>
