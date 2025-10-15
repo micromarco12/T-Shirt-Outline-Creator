@@ -364,15 +364,16 @@
                 }
 
                 const result = await response.json();
-                console.log('API Response:', result);
+                console.log('API Response:', JSON.stringify(result, null, 2));
 
                 if (result.candidates && result.candidates[0]?.content?.parts) {
                     const parts = result.candidates[0].content.parts;
+                    console.log('Parts:', JSON.stringify(parts, null, 2));
 
                     for (const part of parts) {
-                        if (part.inline_data) {
-                            const imageData = part.inline_data;
-                            const dataUrl = `data:${imageData.mime_type};base64,${imageData.data}`;
+                        if (part.inline_data || part.inlineData) {
+                            const imageData = part.inline_data || part.inlineData;
+                            const dataUrl = `data:${imageData.mime_type || imageData.mimeType};base64,${imageData.data}`;
 
                             outlineImage.src = dataUrl;
                             outlineContainer.classList.remove('hidden');
