@@ -23,6 +23,29 @@
             Upload an image to generate its line art outline. Perfect for custom T-shirt designs.
         </p>
 
+        <!-- Model Selection and Prompt Input -->
+        <div class="mb-6 w-full max-w-2xl mx-auto space-y-4">
+            <div>
+                <label for="modelSelect" class="block text-sm font-medium text-gray-300 mb-2">AI Model</label>
+                <select
+                    id="modelSelect"
+                    class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                    <option value="flux-pro">Flux Pro (Canny)</option>
+                    <option value="gemini">Gemini Nano</option>
+                </select>
+            </div>
+            <div>
+                <label for="promptInput" class="block text-sm font-medium text-gray-300 mb-2">Prompt</label>
+                <textarea
+                    id="promptInput"
+                    rows="3"
+                    class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    placeholder="Enter your prompt here..."
+                >A minimalist line art outline, black lines on a clean white background, no shading, coloring book style</textarea>
+            </div>
+        </div>
+
         <!-- Image Upload Dropzone -->
         <div id="upload-container">
             <div id="dropzone" class="w-full max-w-lg mx-auto bg-gray-800 border-2 border-dashed border-gray-600 rounded-xl p-8 cursor-pointer transition-all duration-300 hover:border-indigo-500">
@@ -86,11 +109,20 @@
     <script type="module">
         // Use the new, recommended @fal-ai/client
         import { fal } from 'https://esm.sh/@fal-ai/client';
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-        // Get API key from environment variable
-        const API_KEY = import.meta.env.VITE_FAL_API_KEY;
+        // Get API keys from environment variables
+        const FAL_API_KEY = import.meta.env.VITE_FAL_API_KEY;
+        const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+        const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        // Initialize Supabase client
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // DOM Element References
+        const modelSelect = document.getElementById('modelSelect');
+        const promptInput = document.getElementById('promptInput');
         const uploadContainer = document.getElementById('upload-container');
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
@@ -171,11 +203,25 @@
             reader.readAsDataURL(file);
         }
 
-        function processImage() {
+        async function processImage() {
             if (isProcessing) return;
 
-            if (!API_KEY || API_KEY === 'your_fal_api_key_here') {
-                alert('API key not configured. Please add your fal.ai API key to the .env file.');
+            const selectedModel = modelSelect.value;
+            const prompt = promptInput.value.trim();
+
+            if (!prompt) {
+                alert('Please enter a prompt.');
+                return;
+            }
+
+            // Check API key based on selected model
+            if (selectedModel === 'flux-pro' && (!FAL_API_KEY || FAL_API_KEY === 'your_fal_api_key_here')) {
+                alert('Flux Pro API key not configured. Please add your fal.ai API key to the .env file.');
+                return;
+            }
+
+            if (selectedModel === 'gemini' && (!GEMINI_API_KEY || GEMINI_API_KEY === 'your_gemini_api_key_here')) {
+                alert('Gemini API key not configured. Please add your Gemini API key to the .env file.');
                 return;
             }
 
@@ -184,33 +230,68 @@
             createOutlineButton.classList.add('hidden');
             errorContainer.classList.add('hidden');
 
-            runFalAI(currentFile, API_KEY);
+            // Save prompt to database
+            await savePromptToLibrary(prompt, selectedModel);
+
+            if (selectedModel === 'flux-pro') {
+                runFluxPro(currentFile, prompt);
+            } else if (selectedModel === 'gemini') {
+                runGemini(currentFile, prompt);
+            }
         }
 
         /**
-         * Calls the fal.ai API to generate the image outline based on the provided documentation.
-         * @param {File} imageFile The raw image file object.
-         * @param {string} apiKey The user's fal.ai API key.
+         * Saves a prompt to the library in Supabase
          */
-        async function runFalAI(imageFile, apiKey) {
-            const prompt = "A minimalist line art outline, black lines on a clean white background, no shading, coloring book style";
-            loadingStatus.textContent = 'Connecting to API...';
+        async function savePromptToLibrary(promptText, model) {
+            try {
+                // Check if prompt already exists
+                const { data: existing } = await supabase
+                    .from('prompts')
+                    .select('id, used_count')
+                    .eq('prompt_text', promptText)
+                    .eq('model', model)
+                    .maybeSingle();
+
+                if (existing) {
+                    // Update usage count
+                    await supabase
+                        .from('prompts')
+                        .update({ used_count: existing.used_count + 1 })
+                        .eq('id', existing.id);
+                } else {
+                    // Insert new prompt
+                    await supabase
+                        .from('prompts')
+                        .insert({
+                            prompt_text: promptText,
+                            model: model,
+                            used_count: 1
+                        });
+                }
+            } catch (error) {
+                console.error('Error saving prompt:', error);
+            }
+        }
+
+        /**
+         * Calls the Flux Pro API to generate the image outline
+         */
+        async function runFluxPro(imageFile, prompt) {
+            loadingStatus.textContent = 'Connecting to Flux Pro API...';
 
             try {
-                // Configure the client with the user's API key, as per docs
                 fal.config({
-                    credentials: apiKey,
+                    credentials: FAL_API_KEY,
                 });
 
-                // Use fal.subscribe with the correct model and parameters
                 const result = await fal.subscribe("fal-ai/flux-pro/v1/canny", {
                     input: {
                         prompt: prompt,
-                        control_image_url: imageFile, // Correct parameter name
+                        control_image_url: imageFile,
                     },
                     logs: true,
                     onQueueUpdate: (update) => {
-                        // Display real-time progress logs from the API
                         if (update.status === "IN_PROGRESS" && update.logs.length > 0) {
                            const lastLog = update.logs[update.logs.length - 1].message;
                            loadingStatus.textContent = lastLog;
@@ -218,7 +299,6 @@
                     },
                 });
 
-                // The new model returns an array of images inside a 'data' object.
                 if (result && result.data && result.data.images && result.data.images.length > 0) {
                     outlineImage.src = result.data.images[0].url;
                     outlineContainer.classList.remove('hidden');
@@ -227,14 +307,87 @@
                 }
 
             } catch (error) {
-                console.error("fal.ai API Error:", error);
+                console.error("Flux Pro API Error:", error);
                 showError(error.message || 'An unknown error occurred during processing.');
             } finally {
                 isProcessing = false;
                 loading.classList.add('hidden');
-                loadingStatus.textContent = 'Processing your image...'; // Reset status text
+                loadingStatus.textContent = 'Processing your image...';
                 startOverButton.classList.remove('hidden');
             }
+        }
+
+        /**
+         * Calls the Gemini API to generate the image outline
+         */
+        async function runGemini(imageFile, prompt) {
+            loadingStatus.textContent = 'Connecting to Gemini API...';
+
+            try {
+                // Convert file to base64
+                const base64 = await fileToBase64(imageFile);
+
+                // Call Gemini API
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                {
+                                    inline_data: {
+                                        mime_type: imageFile.type,
+                                        data: base64
+                                    }
+                                }
+                            ]
+                        }],
+                        generationConfig: {
+                            temperature: 0.4,
+                            topK: 32,
+                            topP: 1,
+                            maxOutputTokens: 4096,
+                        }
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
+                    // For now, display the text response
+                    // Note: Gemini doesn't generate images directly like Flux Pro
+                    showError('Gemini text response: ' + result.candidates[0].content.parts[0].text);
+                } else {
+                    throw new Error("Gemini API did not return expected response.");
+                }
+
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                showError(error.message || 'An unknown error occurred with Gemini API.');
+            } finally {
+                isProcessing = false;
+                loading.classList.add('hidden');
+                loadingStatus.textContent = 'Processing your image...';
+                startOverButton.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Converts a file to base64 string
+         */
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
         }
         
         function showError(message) {
