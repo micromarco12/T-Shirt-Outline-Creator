@@ -1,0 +1,5 @@
+{
+  "name": "T-Shirt Outline Creator",
+  "description": "An application that uses AI to extract line art outlines from user-uploaded images, perfect for creating T-shirt designs. The app features a drag-and-drop interface and processes images using the fal.ai API.",
+  "requestFramePermissions": []
+}

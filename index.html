@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T-Shirt Outline Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* A simple style for the drag-active state on the dropzone */
+        .drag-active {
+            border-color: #4f46e5;
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans antialiased">
+
+    <div class="w-full max-w-4xl mx-auto text-center">
+        <h1 class="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 text-transparent bg-clip-text mb-2">
+            T-Shirt Outline Creator
+        </h1>
+        <p class="text-gray-400 mb-8 max-w-2xl mx-auto">
+            Upload an image to generate its line art outline. Perfect for custom T-shirt designs.
+        </p>
+
+        <!-- API Key Input -->
+        <div class="mb-6 w-full max-w-md mx-auto">
+            <label for="apiKey" class="block text-sm font-medium text-gray-300 mb-2">fal.ai API Key</label>
+            <input 
+                type="password" 
+                id="apiKey"
+                class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="Enter your fal.ai Key ID:Key Secret"
+            >
+        </div>
+
+        <!-- Image Upload Dropzone -->
+        <div id="upload-container">
+            <div id="dropzone" class="w-full max-w-lg mx-auto bg-gray-800 border-2 border-dashed border-gray-600 rounded-xl p-8 cursor-pointer transition-all duration-300 hover:border-indigo-500">
+                <div class="flex flex-col items-center justify-center space-y-4">
+                    <svg class="w-12 h-12 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
+                    </svg>
+                    <p class="text-lg font-semibold text-gray-300">Drag & drop your image here</p>
+                    <p class="text-gray-500">or</p>
+                    <button type="button" id="uploadButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Click to upload
+                    </button>
+                </div>
+                <input type="file" id="fileInput" class="hidden" accept="image/*">
+            </div>
+        </div>
+        
+        <div id="app-container" class="hidden">
+            <!-- Loading Indicator -->
+            <div id="loading" class="hidden mt-8 flex flex-col items-center justify-center">
+                <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p id="loading-status" class="mt-4 text-gray-400">Processing your image...</p>
+            </div>
+            
+            <!-- Error Display -->
+            <div id="error" class="hidden mt-8 w-full max-w-lg mx-auto bg-red-900/50 border border-red-500 text-red-300 px-4 py-3 rounded-lg" role="alert">
+                <strong class="font-bold">Error:</strong>
+                <span id="error-message" class="block sm:inline">Something went wrong.</span>
+            </div>
+
+            <!-- Results Display -->
+            <div id="results-grid" class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10 w-full">
+                <!-- Original Image -->
+                <div id="original-container" class="bg-gray-800 p-4 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-300">Original Image</h2>
+                    <div class="aspect-square bg-gray-700 rounded-lg overflow-hidden">
+                        <img id="originalImage" src="" alt="Original user upload" class="w-full h-full object-contain">
+                    </div>
+                    <button type="button" id="createOutlineButton" class="hidden mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors w-full text-lg">
+                        Create Outline
+                    </button>
+                </div>
+                <!-- Generated Outline -->
+                <div id="outline-container" class="hidden bg-gray-800 p-4 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-300">Generated Outline</h2>
+                    <div class="aspect-square bg-gray-700 rounded-lg overflow-hidden">
+                        <img id="outlineImage" src="" alt="AI-generated outline" class="w-full h-full object-contain">
+                    </div>
+                </div>
+            </div>
+
+            <button id="startOverButton" class="hidden mt-8 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                Start Over
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Use the new, recommended @fal-ai/client
+        import { fal } from 'https://esm.sh/@fal-ai/client';
+
+        // DOM Element References
+        const apiKeyInput = document.getElementById('apiKey');
+        const uploadContainer = document.getElementById('upload-container');
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadButton');
+        
+        const appContainer = document.getElementById('app-container');
+        const loading = document.getElementById('loading');
+        const loadingStatus = document.getElementById('loading-status');
+        const errorContainer = document.getElementById('error');
+        const errorMessage = document.getElementById('error-message');
+        
+        const resultsGrid = document.getElementById('results-grid');
+        const originalContainer = document.getElementById('original-container');
+        const outlineContainer = document.getElementById('outline-container');
+        const originalImage = document.getElementById('originalImage');
+        const outlineImage = document.getElementById('outlineImage');
+        const createOutlineButton = document.getElementById('createOutlineButton');
+        const startOverButton = document.getElementById('startOverButton');
+
+        let isProcessing = false;
+        let currentFile = null;
+
+        // --- Persist API Key in localStorage ---
+        const savedApiKey = localStorage.getItem('falApiKey');
+        if (savedApiKey) {
+            apiKeyInput.value = savedApiKey;
+        }
+        apiKeyInput.addEventListener('input', () => {
+            localStorage.setItem('falApiKey', apiKeyInput.value);
+        });
+
+        // --- Event Listeners ---
+        dropzone.addEventListener('click', () => fileInput.click());
+        uploadButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        createOutlineButton.addEventListener('click', processImage);
+        startOverButton.addEventListener('click', resetApp);
+
+        // --- Drag and Drop ---
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => dropzone.classList.add('drag-active'), false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => dropzone.classList.remove('drag-active'), false);
+        });
+        dropzone.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        }, false);
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Invalid file type. Please upload an image.');
+                return;
+            }
+            currentFile = file;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                originalImage.src = e.target.result;
+                uploadContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                resultsGrid.classList.remove('hidden');
+                outlineContainer.classList.add('hidden');
+                createOutlineButton.classList.remove('hidden');
+                startOverButton.classList.add('hidden');
+                errorContainer.classList.add('hidden');
+            };
+            reader.onerror = () => alert('Could not read the selected file.');
+            reader.readAsDataURL(file);
+        }
+
+        function processImage() {
+            if (isProcessing) return;
+            
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                alert('Please enter your fal.ai API Key before creating an outline.');
+                return;
+            }
+            
+            isProcessing = true;
+            loading.classList.remove('hidden');
+            createOutlineButton.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            
+            runFalAI(currentFile, apiKey);
+        }
+
+        /**
+         * Calls the fal.ai API to generate the image outline based on the provided documentation.
+         * @param {File} imageFile The raw image file object.
+         * @param {string} apiKey The user's fal.ai API key.
+         */
+        async function runFalAI(imageFile, apiKey) {
+            const prompt = "A minimalist line art outline, black lines on a clean white background, no shading, coloring book style";
+            loadingStatus.textContent = 'Connecting to API...';
+
+            try {
+                // Configure the client with the user's API key, as per docs
+                fal.config({
+                    credentials: apiKey,
+                });
+
+                // Use fal.subscribe with the correct model and parameters
+                const result = await fal.subscribe("fal-ai/flux-pro/v1/canny", {
+                    input: {
+                        prompt: prompt,
+                        control_image_url: imageFile, // Correct parameter name
+                    },
+                    logs: true,
+                    onQueueUpdate: (update) => {
+                        // Display real-time progress logs from the API
+                        if (update.status === "IN_PROGRESS" && update.logs.length > 0) {
+                           const lastLog = update.logs[update.logs.length - 1].message;
+                           loadingStatus.textContent = lastLog;
+                        }
+                    },
+                });
+
+                // The new model returns an array of images inside a 'data' object.
+                if (result && result.data && result.data.images && result.data.images.length > 0) {
+                    outlineImage.src = result.data.images[0].url;
+                    outlineContainer.classList.remove('hidden');
+                } else {
+                    throw new Error("API did not return a valid image. Check the model's output format.");
+                }
+
+            } catch (error) {
+                console.error("fal.ai API Error:", error);
+                showError(error.message || 'An unknown error occurred during processing.');
+            } finally {
+                isProcessing = false;
+                loading.classList.add('hidden');
+                loadingStatus.textContent = 'Processing your image...'; // Reset status text
+                startOverButton.classList.remove('hidden');
+            }
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorContainer.classList.remove('hidden');
+            resultsGrid.classList.add('hidden'); // Hide results on error
+            startOverButton.classList.remove('hidden');
+        }
+
+        function resetApp() {
+            isProcessing = false;
+            currentFile = null;
+            fileInput.value = ''; 
+            
+            appContainer.classList.add('hidden');
+            uploadContainer.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
