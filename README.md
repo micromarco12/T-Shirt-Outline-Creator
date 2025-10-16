@@ -6,6 +6,8 @@
 
 This contains everything you need to run your app locally.
 
+<!-- Sync test comment added at $(date) -->
+
 View your app in AI Studio: https://ai.studio/apps/drive/1688mggmRCVrcIN5jC7TB1HPX17f0HB6M
 
 ## Run Locally
